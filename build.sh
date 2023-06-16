@@ -1,4 +1,5 @@
 
 mkdir -p build 
-cd build && cmake .. 
+# The benchmarks are off by default
+cd build && cmake -DRUN_BENCHMARKS=OFF .. 
 make -j 

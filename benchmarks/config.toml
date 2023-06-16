@@ -1,0 +1,40 @@
+
+[[benchmark]]
+name = "./mnist-784-euclidean.train.npy"
+metric_id = 0
+dim = 784
+max_edges = 16
+ef_construction = 100
+dataset_size = 60000
+
+[[benchmark]]
+name = "gist-960-euclidean.train.npy"
+metric_id = 0
+dim = 960
+max_edges = 16
+ef_construction = 100
+dataset_size = 1000000
+
+[[benchmark]]
+name = "glove-200-angular.train.npy"
+metric_id = 1
+dim = 200
+max_edges = 16
+ef_construction = 100
+dataset_size = 1183514
+
+[[benchmark]]
+name = "sift-128-euclidean.train.npy"
+metric_id = 0
+dim = 128
+max_edges = 16
+ef_construction = 100
+dataset_size = 1000000
+
+[[benchmark]]
+name = "deep-image-96-angular.train.npy"
+metric_id = 1
+dim = 96
+max_edges = 16
+ef_construction = 100
+dataset_size = 9990000
