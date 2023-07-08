@@ -21,16 +21,15 @@ template <typename dist_t, typename label_t> class Index {
 public:
   typedef std::pair<float, label_t> dist_label_t;
 
-  /*
-Constructs a Flatnav Index for approximate near neighbor search.
-
-Arguments:
-  dist: A distance metric for the specific index instance. Optiions include
-      l2(euclidean) and inner product.
-  dataset_size: The maximum number of vectors that the index can contain
-  max_edges_per_node: The maximm number of links per node
-
-*/
+  /**
+   * @brief Construct a new Index object for approximate near neighbor search
+   *
+   * @param dist                A distance metric for the specific index
+   * distance. Options include l2(euclidean) and inner product.
+   * @param dataset_size        The maximum number of vectors that can be
+   * inserted in the index.
+   * @param max_edges_per_node  The maximum number of links per node.
+   */
   Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),

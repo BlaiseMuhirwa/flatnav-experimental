@@ -23,9 +23,9 @@ def main(args):
         test_data /= np.linalg.norm(test_data, axis=1, keepdims=True) + 1e-30
 
     fname = filename.replace(".hdf5", "")
-    np.save(fname + ".train", train_data)
-    np.save(fname + ".test", test_data)
-    np.save(fname + ".gtruth", ground_truth)
+    np.save(fname + ".train", train_data.astype(np.float32))
+    np.save(fname + ".test", test_data.astype(np.float32))
+    np.save(fname + ".gtruth", ground_truth.astype(np.uint32))
 
 
 if __name__ == "__main__":

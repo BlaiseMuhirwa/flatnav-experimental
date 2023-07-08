@@ -1,0 +1,17 @@
+
+/**
+ * CMake configuration template file. This is supposed to be processed by
+ * `configure_file()` in the CMakeLists.txt specification. 
+*/
+
+#ifndef CONFIG_H_
+#define CONFIG_H_
+
+#cmakedefine AVX 
+#cmakedefine AVX2 
+
+#define FORCE_INLINE __attribute__((always_inline))
+
+
+#endif 
+

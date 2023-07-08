@@ -14,4 +14,4 @@ build
 flatnav_pyton/flatnav.egg-info
 
 # other files
-mnist-784-euclidean.hdf5
+data/
