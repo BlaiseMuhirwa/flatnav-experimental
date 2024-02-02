@@ -14,27 +14,39 @@ sift-bench:
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
-		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename sift.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 \
 		--ef-search 100 200 300 \
 		--metric l2 \
 		--num-build-threads 16 \
-		--num-search-threads 1 \
-		--reordering-strategies gorder rcm 
+		--num-search-threads 16 
 
-glove-bench:
-	poetry run python run-big-bench.py \
-		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
-		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
-		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
-		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename glove.mtx \
+hubness-test:
+	poetry run python hubness.py \
+		--datasets normal-1-angular normal-2-angular normal-4-angular normal-8-angular normal-16-angular normal-32-angular normal-64-angular normal-128-angular normal-256-angular normal-1024-angular normal-1536-angular normal-1-euclidean normal-2-euclidean normal-4-euclidean normal-8-euclidean normal-16-euclidean normal-32-euclidean normal-64-euclidean normal-128-euclidean normal-256-euclidean normal-1024-euclidean normal-1536-euclidean \
+		--k 100 \
+		--ef-construction 100 \
+		--ef-search 200 \
 		--num-node-links 32 \
-		--ef-construction 100 200 \
-		--ef-search 100 200 300 \
-		--metric angular
+		--hubness-scores hubness-scores.json
+
+
+generate-datasets:
+	poetry run python generate-datasets.py \
+		--base-path /home/ubuntu/flatnav-experimental/data \
+		--dataset-size 1010000 \
+		--num-queries 10000 \
+		--dimensions 1 2 4 8 16 32 64 128 1536 \
+		--k 100
+
+# Generate hubness scores for each desired dataset
+generate-hubness-scores:
+	poetry run python generate-hubness-scores.py \
+		--dataset-names normal-1-angular normal-2-angular normal-4-angular normal-8-angular normal-16-angular normal-32-angular normal-64-angular normal-128-angular normal-256-angular normal-1024-angular normal-1536-angular normal-2048-angular normal-1-euclidean normal-2-euclidean normal-4-euclidean normal-8-euclidean normal-16-euclidean normal-32-euclidean normal-64-euclidean normal-128-euclidean normal-256-euclidean normal-1024-euclidean normal-1536-euclidean normal-2048-euclidean \
+		--base-path /media/scratch/ \
+		--k 100 \
+		--save-file hubness-scores-full.json
+
 
 setup: install-flatnav install-hnswlib
 

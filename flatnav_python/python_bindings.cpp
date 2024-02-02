@@ -36,6 +36,9 @@ public:
   typedef std::pair<py::array_t<float>, py::array_t<label_t>>
       DistancesLabelsPair;
 
+  typedef std::pair<py::array_t<label_t>, py::array_t<float>>
+      LabelsDistancesPair;
+
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
         _index(index.get()) {
@@ -154,7 +157,7 @@ public:
     }
   }
 
-  DistancesLabelsPair
+  LabelsDistancesPair
   search(const py::array_t<float, py::array::c_style | py::array::forcecast>
              queries,
          int K, int ef_search, int num_initializations = 100) {
@@ -218,7 +221,7 @@ public:
         {num_queries, (size_t)K}, {K * sizeof(float), sizeof(float)}, distances,
         free_distances_when_done);
 
-    return {dists, labels};
+    return {labels, dists};
   }
 };
 
