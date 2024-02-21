@@ -312,20 +312,17 @@ public:
         beamSearch(/* query = */ query,
                    /* entry_node = */ entry_node,
                    /* buffer_size = */ std::max(ef_search, K));
-    auto size = neighbors.size();
-    std::vector<dist_label_t> results;
-    results.reserve(size);
-    while (!neighbors.empty()) {
-      results.emplace_back(neighbors.top().first,
-                           *getNodeLabel(neighbors.top().second));
+
+    while (neighbors.size() > K) {
       neighbors.pop();
     }
-    std::sort(results.begin(), results.end(),
-              [](const dist_label_t &left, const dist_label_t &right) {
-                return left.first < right.first;
-              });
-    if (results.size() > static_cast<size_t>(K)) {
-      results.resize(K);
+    std::vector<dist_label_t> results;
+    results.reserve(neighbors.size());
+
+    while (neighbors.size() > 0) {
+      auto [distance, node_id] = neighbors.top();
+      results.emplace_back(distance, *getNodeLabel(node_id));
+      neighbors.pop();
     }
 
     return results;
