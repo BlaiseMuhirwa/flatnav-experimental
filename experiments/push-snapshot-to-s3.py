@@ -90,7 +90,7 @@ def run():
             "AWS_S3_BUCKET_NAME and BUCKET_PREFIX environment variables must be set"
         )
 
-    s3_client = boto3.client("s3")  
+    s3_client = boto3.client("s3")
 
     while True:
         latest_file = find_most_recent_file(
@@ -120,10 +120,15 @@ if __name__ == "__main__":
     DISABLE_PUSH_TO_S3 = bool(int(os.environ.get("DISABLE_PUSH_TO_S3", "0")))
 
     if DISABLE_PUSH_TO_S3:
-        logger.info("DISABLE_PUSH_TO_S3 environment variable is set. No indexes will be pushed.")
+        logger.info(
+            "DISABLE_PUSH_TO_S3 environment variable is set. No indexes will be pushed."
+        )
         while True:
             # Delete any indexes that have accumulated
-            delete_old_indices(directory=os.getcwd(), file_extension=os.environ.get("FILE_EXTENSION", ".hnsw"))
+            delete_old_indices(
+                directory=os.getcwd(),
+                file_extension=os.environ.get("FILE_EXTENSION", ".hnsw"),
+            )
             time.sleep(30)
 
     run()

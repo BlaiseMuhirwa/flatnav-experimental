@@ -31,10 +31,12 @@ void buildIndex(float *data,
                 int M, int dim, int ef_construction,
                 const std::string &save_file) {
 
+  std::cout << "[info] building index" << std::endl;
   auto index = new Index<dist_t, int>(
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
-
+  std::cout << "[info] setting num threads to "
+            << std::thread::hardware_concurrency() << std::endl;
   index->setNumThreads(std::thread::hardware_concurrency());
 
   auto start = std::chrono::high_resolution_clock::now();
@@ -43,6 +45,8 @@ void buildIndex(float *data,
   std::iota(labels.begin(), labels.end(), 0);
   index->addBatch(/* data = */ (void *)data, /* labels = */ labels,
                   /* ef_construction */ ef_construction);
+
+  exit(0);
 
   auto stop = std::chrono::high_resolution_clock ::now();
   auto duration =

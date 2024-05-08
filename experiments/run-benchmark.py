@@ -271,12 +271,11 @@ def main(
     num_build_threads: int = 1,
     num_search_threads: int = 1,
 ):
-    
     def build_and_run_knn_search(ef_cons: int, node_links: int):
         """
         Build the index and run the KNN search.
         This part is here to ensure that two indices are not in memory at the same time.
-        With large datasets, we might get an OOM error. 
+        With large datasets, we might get an OOM error.
         """
         index = train_index(
             index_type=index_type,
@@ -290,7 +289,7 @@ def main(
             hnsw_base_layer_filename=hnsw_base_layer_filename,
             num_build_threads=num_build_threads,
         )
-        
+
         if reordering_strategies is not None:
             if type(index) not in (
                 flatnav.index.L2Index,
@@ -298,7 +297,7 @@ def main(
             ):
                 raise ValueError("Reordering only applies to the FlatNav index.")
             index.reorder(strategies=reordering_strategies)
-        
+
         index.set_num_threads(num_search_threads)
         for ef_search in ef_search_params:
             # Extend metrics with computed metrics
@@ -331,8 +330,7 @@ def main(
             all_metrics[experiment_key].append(metrics)
             with open(metrics_file, "w") as file:
                 json.dump(all_metrics, file, indent=4)
-    
-    
+
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 

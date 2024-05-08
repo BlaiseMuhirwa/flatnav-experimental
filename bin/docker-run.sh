@@ -1,5 +1,14 @@
 #!/bin/bash 
 
+# Use this script to build and run the docker container.
+# Optionally, you can set the environment variable INCLUDE_HNSWLIB to false to build
+# the docker image without hnswlib. This is useful for experiments that only require 
+# FlatNav. 
+# Example usage:
+# export INLCUDE_HNSWLIB=false
+# ./bin/docker-test.sh sift-bench 
+
+
 # Print commands and exit on errors
 set -ex 
 
@@ -58,6 +67,10 @@ DATA_DIR=${DATA_DIR:-$(pwd)/data}
 # Directory for storing metrics and plots. 
 METRICS_DIR=${METRICS_DIR:-$(pwd)/metrics}
 
+INCLUDE_HNSWLIB=${INCLUDE_HNSWLIB:-true}
+DATA_DIR=${DATA_DIR:-$(pwd)/data}
+
+
 echo "Building docker image with tag name: $TAG_NAME"
 
 # If data directory doesn't exist, exit 
@@ -70,7 +83,8 @@ mkdir -p $METRICS_DIR
 # Clean up existing docker images matching "flatnav" if any 
 docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
 
-docker build --tag flatnav:$TAG_NAME -f Dockerfile .
+docker build --build-arg INCLUDE_HNSWLIB=$INCLUDE_HNSWLIB \
+             --tag flatnav:$TAG_NAME -f Dockerfile .
 
 # Check if the first argument is set. If it is, then run docker container with the 
 # first argument as the make target. If not, then run the container with the default

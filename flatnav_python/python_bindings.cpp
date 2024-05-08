@@ -6,6 +6,7 @@
 #include <flatnav/util/ParallelConstructs.h>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -36,6 +37,11 @@ public:
   typedef std::pair<py::array_t<float>, py::array_t<label_t>>
       DistancesLabelsPair;
 
+  typedef std::pair<py::array_t<label_t>, py::array_t<float>>
+      LabelsDistancesPair;
+
+  // Initialize the index with a pre-constructed index and release the previous
+  // index object
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
         _index(index.release()) {
@@ -47,13 +53,15 @@ public:
 
   PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
           int dataset_size, int max_edges_per_node, bool verbose = false,
-          bool collect_stats = false)
+          bool collect_stats = false, bool use_random_initialization = false, std::optional<size_t> random_seed = std::nullopt)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
             /* max_edges_per_node = */ max_edges_per_node,
-            /* collect_stats = */ collect_stats)) {
+            /* collect_stats = */ collect_stats,
+            /* use_random_initialization = */ use_random_initialization,
+            /* random_seed = */ random_seed)) {
 
     if (_verbose) {
       uint64_t total_index_memory = _index->getTotalIndexMemory();
@@ -72,17 +80,6 @@ public:
                 << std::flush;
       _index->getIndexSummary();
     }
-  }
-
-  PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
-          const std::string &mtx_filename, bool verbose = false,
-          bool collect_stats = false)
-      : _label_id(0), _verbose(verbose),
-        _index(
-            new Index<dist_t, label_t>(/* dist = */ std::move(distance),
-                                       /* mtx_filename = */ mtx_filename,
-                                       /* collect_stats = */ collect_stats)) {
-    _dim = _index->dataDimension();
   }
 
   Index<dist_t, label_t> *getIndex() { return _index; }
@@ -292,7 +289,7 @@ public:
         {num_queries, (size_t)K}, {K * sizeof(float), sizeof(float)}, distances,
         free_distances_when_done);
 
-    return {dists, labels};
+    return {labels, dists};
   }
 };
 
@@ -347,6 +344,30 @@ void bindIndexMethods(
            "how "
            "many neighbors are visited while finding the closest neighbors "
            "for every query.")
+      .def(
+          "get_node_access_counts",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            return index->getNodeAccessCounts();
+          },
+          "Returns a dictionary mapping node ID's to the number of times they "
+          "were accessed during the search operation.")
+      .def(
+          "get_edge_access_counts",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            return index->getEdgeAccessCounts();
+          },
+          "Returns a dictionary mapping edge ID's to the number of times they "
+          "were accessed during the search operation.")
+      .def(
+          "get_edge_length_distribution",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            index->computeEdgeLengthDistribution();
+            return index->getEdgeLengthDistribution();
+          },
+          "")
       .def(
           "get_graph_outdegree_table",
           [](IndexType &index_type) -> std::vector<std::vector<uint32_t>> {
@@ -420,7 +441,7 @@ void bindIndexMethods(
 
 template <typename... Args>
 py::object createIndex(const std::string &distance_type, int dim,
-                       Args &&...args) {
+                       Args &&... args) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });
@@ -444,17 +465,20 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       "index_factory",
       [](const std::string &distance_type, int dim, int dataset_size,
          int max_edges_per_node, bool verbose = false,
-         bool collect_stats = false) {
+         bool collect_stats = false, bool use_random_initialization = false, std::optional<size_t> random_seed = std::nullopt) {
         return createIndex(distance_type, dim, dataset_size, max_edges_per_node,
-                           verbose, collect_stats);
+                           verbose, collect_stats, use_random_initialization, random_seed);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("verbose") = false,
       py::arg("collect_stats") = false,
+      py::arg("use_random_initialization") = false,
+      py::arg("random_seed") = std::nullopt,
+
       "Creates a FlatNav index given the corresponding "
       "parameters. The `distance_type` argument determines the "
       "kind of index created (either L2Index or IPIndex)");
-
+  
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");
   bindIndexMethods(l2_index_class);

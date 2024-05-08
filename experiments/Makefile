@@ -8,6 +8,7 @@ yandex-deep-bench:
 		--gtruth /media/scratch/yandex-deep/ground_truth.10K.bin \
 		--metric l2 > logs.txt 2>&1
 
+<<<<<<< HEAD
 # Billion-scale benchmark for the Microsoft SpaceV1B dataset
 # Reference: https://github.com/microsoft/SPTAG/tree/main/datasets/SPACEV1B
 space-v1b-bench-flatnav:
@@ -39,6 +40,19 @@ space-v1b-bench-hnsw:
 		--num-build-threads 45 \
 		--num-search-threads 1 \
 		--metric l2
+=======
+glove-bench:
+	poetry run python run-big-bench.py \
+		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
+		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
+		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename glove.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 \
+		--ef-search 100 200 300 \
+		--metric angular
+>>>>>>> 7be3dd24a9bcdd4a7b000ebb8d94383498830984
 
 # Other available options include: --index-type (hnsw, flatnav)
 # We use dataset-name for the name of the plots.
@@ -120,6 +134,33 @@ sift-bench-flatnav:
 		--num-build-threads 16 \
 		--num-search-threads 1 
 
+hubness-test:
+	poetry run python hubness.py \
+		--datasets normal-1-angular normal-2-angular normal-4-angular normal-8-angular normal-16-angular normal-32-angular normal-64-angular normal-128-angular normal-256-angular normal-1024-angular normal-1536-angular normal-1-euclidean normal-2-euclidean normal-4-euclidean normal-8-euclidean normal-16-euclidean normal-32-euclidean normal-64-euclidean normal-128-euclidean normal-256-euclidean normal-1024-euclidean normal-1536-euclidean \
+		--k 100 \
+		--ef-construction 100 \
+		--ef-search 200 \
+		--num-node-links 32 \
+		--hubness-scores hubness-scores.json
+
+
+generate-datasets:
+	poetry run python generate-datasets.py \
+		--base-path /home/ubuntu/flatnav-experimental/data \
+		--dataset-size 1010000 \
+		--num-queries 10000 \
+		--dimensions 1 2 4 8 16 32 64 128 1536 \
+		--k 100
+
+# Generate hubness scores for each desired dataset
+generate-hubness-scores:
+	poetry run python generate-hubness-scores.py \
+		--dataset-names normal-1-angular normal-2-angular normal-4-angular normal-8-angular normal-16-angular normal-32-angular normal-64-angular normal-128-angular normal-256-angular normal-1024-angular normal-1536-angular normal-2048-angular normal-1-euclidean normal-2-euclidean normal-4-euclidean normal-8-euclidean normal-16-euclidean normal-32-euclidean normal-64-euclidean normal-128-euclidean normal-256-euclidean normal-1024-euclidean normal-1536-euclidean normal-2048-euclidean \
+		--base-path /media/scratch/ \
+		--k 100 \
+		--save-file hubness-scores-full.json
+
+
 sift-bench-hnsw: 
 	poetry run python run-benchmark.py \
 		--dataset-name sift \
@@ -173,7 +214,7 @@ glove25-bench-flatnav:
 		--dataset-name glove-25-angular \
 		--index-type flatnav \
 		--use-hnsw-base-layer \
-                --hnsw-base-layer-filename glove25.mtx \
+        --hnsw-base-layer-filename glove25.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 500 1000 3000 \
@@ -224,6 +265,53 @@ nytimes-bench-hnsw:
 		--num-build-threads 16 \
 		--num-search-threads 1 \
 		--metric angular
+
+node-access-test:
+	poetry run python node-access-patterns.py \
+		--datasets mnist-784-euclidean sift-128-euclidean glove-25-angular glove-100-angular \
+		--k 100 \
+		--metrics l2 l2 angular angular \
+		--ef-construction 100 \
+		--ef-search 200 \
+		--num-node-links 32
+		
+generate-hubness-scores:
+	poetry run python generate-hubness-scores.py \
+		--base-path ../data \
+		--dataset-names normal-256-angular normal-256-euclidean \
+		--k 100 \
+		--save-file hubness-scores.json 
+
+# sift-128-euclidean glove-100-angular normal-10-angular normal-10-euclidean normal-256-angular normal-256-euclidean normal-1024-angular normal-1024-euclidean
+# l2 angular angular l2 angular l2 angular l2
+generate-distributions:
+	poetry run python generate-distributions.py \
+		--datasets mnist-784-euclidean sift-128-euclidean glove-100-angular normal-10-angular normal-10-euclidean normal-256-euclidean normal-256-angular \
+		--k 100 \
+		--metrics l2 l2 angular angular l2 l2 angular \
+		--ef-construction 100 \
+		--ef-search 200 \
+		--num-node-links 32 \
+		--distribution-type node-access
+
+
+subgraph-analysis:
+	poetry run python subgraph-analysis.py \
+		--datasets mnist-784-euclidean sift-128-euclidean glove-100-angular normal-256-euclidean \
+		--k 100 \
+		--metrics l2 l2 angular l2 \
+		--ef-construction 100 \
+		--ef-search 100 \
+		--num-node-links 32
+		
+get-index-sizes:
+	poetry run python index-sizes.py \
+		--datasets sift-128-euclidean \
+		--metrics l2 \
+		--ef-construction 100 \
+		--num-node-links 32 \
+		--index-type hnsw
+
 
 setup: install-flatnav install-hnswlib
 
