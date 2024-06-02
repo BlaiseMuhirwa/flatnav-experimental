@@ -51,7 +51,7 @@ def compute_metrics(
     :return: Dictionary of metrics.
 
     """
-    is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
+    is_flatnav_index = not type(index) == hnswlib.Index
     latencies = []
     top_k_indices = []
     distance_computations = []
@@ -158,6 +158,7 @@ def train_index(
     max_edges_per_node: int,
     ef_construction: int,
     index_type: str = "flatnav",
+    data_type: str = "float32",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     num_build_threads: int = 1,
@@ -214,6 +215,7 @@ def train_index(
 
         index = flatnav.index.index_factory(
             distance_type=distance_type,
+            index_data_type=data_type,
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
@@ -232,6 +234,7 @@ def train_index(
     else:
         index = flatnav.index.index_factory(
             distance_type=distance_type,
+            index_data_type=data_type,
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
@@ -264,6 +267,7 @@ def main(
     dataset_name: str,
     requested_metrics: List[str],
     index_type: str = "flatnav",
+    data_type: str = "float32",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     reordering_strategies: List[str] | None = None,
@@ -278,8 +282,10 @@ def main(
         This part is here to ensure that two indices are not in memory at the same time.
         With large datasets, we might get an OOM error. 
         """
+        
         index = train_index(
             index_type=index_type,
+            data_type=data_type,
             train_dataset=train_dataset,
             max_edges_per_node=node_links,
             ef_construction=ef_cons,
@@ -292,10 +298,7 @@ def main(
         )
         
         if reordering_strategies is not None:
-            if type(index) not in (
-                flatnav.index.L2Index,
-                flatnav.index.IPIndex,
-            ):
+            if index_type != "flatnav":
                 raise ValueError("Reordering only applies to the FlatNav index.")
             index.reorder(strategies=reordering_strategies)
         
@@ -358,6 +361,12 @@ def parse_arguments() -> argparse.Namespace:
         "--index-type",
         default="flatnav",
         help="Type of index to benchmark. Options include `flatnav` and `hnsw`.",
+    )
+    
+    parser.add_argument(
+        "--data-type",
+        default="float32",
+        help="Data type of the index. Options include `float32`, `uint8` and `int8`.",
     )
 
     parser.add_argument(
@@ -552,7 +561,7 @@ def run_experiment():
             raise ValueError("HNSW does not support num_initializations.")
 
     metrics_file_path = os.path.join(ROOT_DIR, "metrics", args.metrics_file)
-
+    
     main(
         train_dataset=train_data,
         queries=queries,
@@ -563,6 +572,7 @@ def run_experiment():
         distance_type=args.metric.lower(),
         dataset_name=args.dataset_name,
         index_type=args.index_type.lower(),
+        data_type=args.data_type,
         use_hnsw_base_layer=args.use_hnsw_base_layer,
         hnsw_base_layer_filename=args.hnsw_base_layer_filename,
         reordering_strategies=args.reordering_strategies,

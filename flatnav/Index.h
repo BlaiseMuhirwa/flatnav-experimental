@@ -270,6 +270,7 @@ public:
    * @exception std::runtime_error Thrown if the maximum number of nodes in the
    * index is reached.
    */
+  template <typename data_type>
   void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
                 int num_initializations = 100) {
     if (num_initializations <= 0) {
@@ -282,7 +283,7 @@ public:
     // Don't spawn any threads if we are only using one.
     if (_num_threads == 1) {
       for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
-        void *vector = (float *)data + (row_id * data_dimension);
+        void *vector = (data_type *)data + (row_id * data_dimension);
         label_t label = labels[row_id];
         this->add(vector, label, ef_construction, num_initializations);
       }
@@ -293,7 +294,7 @@ public:
         /* start_index = */ 0, /* end_index = */ total_num_nodes,
         /* num_threads = */ _num_threads, /* function = */
         [&](uint32_t row_index) {
-          void *vector = (float *)data + (row_index * data_dimension);
+          void *vector = (data_type *)data + (row_index * data_dimension);
           label_t label = labels[row_index];
           this->add(vector, label, ef_construction, num_initializations);
         });
@@ -496,6 +497,10 @@ public:
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
+
+  inline constexpr util::DataType dataType() const {
+    return _distance->dataType();
+  }
 
   inline uint64_t distanceComputations() const {
     return _distance_computations.load();

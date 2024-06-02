@@ -81,10 +81,11 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/Datatype.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SimdBaseTypes.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
-    ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
+    # ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 

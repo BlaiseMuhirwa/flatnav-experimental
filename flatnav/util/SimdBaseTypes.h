@@ -14,6 +14,32 @@
 
 namespace flatnav::util {
 
+template <size_t N> struct MaskRepr {};
+template <> struct MaskRepr<2> { using type = uint8_t; };
+template <> struct MaskRepr<4> { using type = uint8_t; };
+template <> struct MaskRepr<8> { using type = uint8_t; };
+template <> struct MaskRepr<16> { using type = uint16_t; };
+template <> struct MaskRepr<32> { using type = uint32_t; };
+template <> struct MaskRepr<64> { using type = uint64_t; };
+
+template <typename T> struct MaskIntrinsic {};
+template <> struct MaskIntrinsic<uint8_t> { using mask_type = __mmask8; };
+template <> struct MaskIntrinsic<uint16_t> { using mask_type = __mmask16; };
+template <> struct MaskIntrinsic<uint32_t> { using mask_type = __mmask32; };
+template <> struct MaskIntrinsic<uint64_t> { using mask_type = __mmask64; };
+
+// Given a length `N`, obtain an appropriate integer type used as a mask for `N`
+// lanes in an AVX vector operation.
+template <size_t N> using mask_repr_t = typename MaskRepr<N>::type;
+
+// Given an unsigned integer type, return the corresponding mask type
+template <typename T>
+using mask_intrinsic_t = typename MaskIntrinsic<T>::mask_type;
+
+// Given a length `N`, obtain an appropriate mask intrinsic type.
+template <size_t N>
+using mask_intrinsic_from_length = mask_intrinsic_t<mask_repr_t<N>>;
+
 #if defined(USE_SSE)
 struct simd128bit {
   union {
@@ -239,6 +265,54 @@ struct simd512bit {
   }
 
   float reduce_add() const { return _mm512_reduce_add_ps(_float); }
+};
+
+struct simd64int8 : public simd512bit {
+
+  // Default constructor to zero-initialize the vector
+  simd64int8() : simd512bit(_mm512_setzero_si512()) {}
+
+  // Construct from __m512i
+  explicit simd64int8(__m512i x) : simd512bit(x) {}
+  explicit simd64int8(const void *x) : simd512bit(x) {}
+
+  // Load from memory location (unaligned)
+  explicit simd64int8(const int8_t *x)
+      : simd512bit(_mm512_loadu_si512((__m512i *)x)) {}
+
+  // Set all elements to a specific value
+  explicit simd64int8(int8_t x) : simd512bit(_mm512_set1_epi8(x)) {}
+
+  inline constexpr __m512i get() const { return _int; }
+
+  // Basic arithmetic operations using AVX512BW intrinsics
+  simd64int8 operator+(const simd64int8 &other) const {
+    __m512i result = _mm512_add_epi8(_int, other._int);
+    return simd64int8(result);
+  }
+
+  simd64int8 operator-(const simd64int8 &other) const {
+    __m512i result = _mm512_sub_epi8(_int, other._int);
+    return simd64int8(result);
+  }
+
+  // in-place addition
+  simd64int8 &operator+=(const simd64int8 &other) {
+    _int = _mm512_add_epi8(_int, other._int);
+    return *this;
+  }
+
+  // Multiply by another vector, producing 32-bit integers, and store the low 16
+  // bits of the intermediate result
+
+  // storing and loading
+  void storeu(int8_t *pointer) const {
+    _mm512_storeu_si512((__m512i *)pointer, _int);
+  }
+
+  void loadu(const int8_t *pointer) {
+    _int = _mm512_loadu_si512((__m512i *)pointer);
+  }
 };
 
 struct simd16float32 : public simd512bit {

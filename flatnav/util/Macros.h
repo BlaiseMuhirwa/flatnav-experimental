@@ -14,8 +14,21 @@
 #define USE_AVX
 
 #ifdef __AVX512F__
+
+#ifdef __AVX512BW__
+#define USE_AVX512BW
+#else
+#error "AVX512BW not supported by the compiler"
+#endif // __AVX512BW__
+
+#ifdef __AVX512VNNI__
+#define USE_AVX512VNNI
+#else
+#error "AVX512VNNI not supported by the compiler"
+#endif // __AVX512VNNI__
+
 #define USE_AVX512
-#endif
+#endif // __AVX512F__
 
 #endif // __AVX__
 #endif

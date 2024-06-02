@@ -52,13 +52,11 @@ class NpyDatasetLoader(DatasetLoader):
             start_index, end_index = self.range
             train_dataset = np.load(self.train_dataset_path)[
                 start_index:end_index
-            ].astype(np.float32, copy=False)
+            ]
         else:
-            train_dataset = np.load(self.train_dataset_path).astype(
-                np.float32, copy=False
-            )
-        queries = np.load(self.queries_path).astype(np.float32, copy=False)
-        ground_truth = np.load(self.ground_truth_path).astype(np.int32, copy=False)
+            train_dataset = np.load(self.train_dataset_path)
+        queries = np.load(self.queries_path)
+        ground_truth = np.load(self.ground_truth_path)
         return train_dataset, queries, ground_truth
 
 

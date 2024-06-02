@@ -5,15 +5,121 @@
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
+#include <flatnav/util/Datatype.h>
 #include <flatnav/util/SquaredL2SimdExtensions.h>
 #include <functional>
 #include <iostream>
+#include <type_traits>
 
 // This is the base distance function implementation for the L2 distance on
 // floating-point inputs. We provide specializations that use SIMD when
 // supported by the compiler and compatible with the input _dimension.
 
 namespace flatnav {
+
+using util::DataType;
+
+template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
+
+  static void
+  adjustForNonOptimalDimensions(DistanceFunctionPtr &distance_function,
+                                const size_t &dimension) {
+#if defined(USE_SSE)
+    if (dimension % 16 != 0) {
+      if (dimension % 4 == 0) {
+        distance_function = std::make_unique<DistanceFunction>(
+            std::bind(&util::computeL2_Sse4Aligned, std::placeholders::_1,
+                      std::placeholders::_2, std::cref(dimension)));
+
+      } else if (dimension > 16) {
+        distance_function = std::make_unique<DistanceFunction>(std::bind(
+            &util::computeL2_SseWithResidual_16, std::placeholders::_1,
+            std::placeholders::_2, std::cref(dimension)));
+
+      } else if (dimension > 4) {
+        distance_function = std::make_unique<DistanceFunction>(
+            std::bind(&util::computeL2_SseWithResidual_4, std::placeholders::_1,
+                      std::placeholders::_2, std::cref(dimension)));
+      }
+    }
+#endif // USE_SSE
+  }
+
+  static void selectInt8(DistanceFunctionPtr &distance_function,
+                         const size_t &dimension) {
+#if defined(USE_AVX512)
+    if (platformSupportsAvx512) {
+      distance_function = std::make_unique<DistanceFunction>(
+          std::bind(&util::computeL2_Avx512_int8, std::placeholders::_1,
+                    std::placeholders::_2, std::cref(dimension)));
+    }
+#endif // USE_AVX512
+  }
+
+  static void selectUint8(DistanceFunctionPtr &distance_function,
+                          const size_t &dimension) {
+    (void)distance_function;
+    (void)dimension;
+    throw std::runtime_error("Not yet implemented!");
+  }
+
+  static void selectFloat32(DistanceFunctionPtr &distance_function,
+                            const size_t &dimension) {
+#if defined(USE_SSE)
+    distance_function = std::make_unique<DistanceFunction>(
+        std::bind(&util::computeL2_Sse, std::placeholders::_1,
+                  std::placeholders::_2, std::cref(dimension)));
+#endif // USE_SSE
+
+#if defined(USE_AVX512)
+    if (platformSupportsAvx512) {
+      distance_function = std::make_unique<DistanceFunction>(
+          std::bind(&util::computeL2_Avx512, std::placeholders::_1,
+                    std::placeholders::_2, std::cref(dimension)));
+
+      adjustForNonOptimalDimensions(distance_function, dimension);
+      return;
+    }
+#endif // USE_AVX512
+
+#if defined(USE_AVX)
+    if (platformSupportsAvx) {
+
+      distance_function = std::make_unique<DistanceFunction>(
+          std::bind(&util::computeL2_Avx2, std::placeholders::_1,
+                    std::placeholders::_2, std::cref(dimension)));
+      adjustForNonOptimalDimensions(distance_function, dimension);
+      return;
+    }
+#endif // USE_AVX
+
+    adjustForNonOptimalDimensions(distance_function, dimension);
+  }
+
+  /**
+   * @brief Select the optimal distance function based on the input dimension
+   * @param dimension The dimension of the input data
+   *
+   * @note There are different SIMD functions for float32, int8_t and uint8_t.
+   * This is why we are templating this class on the data type.
+   */
+  static void select(DistanceFunctionPtr &distance_function,
+                     const size_t &dimension) {
+    switch (data_type) {
+    case DataType::float32:
+      selectFloat32(distance_function, dimension);
+      break;
+    case DataType::int8:
+      selectInt8(distance_function, dimension);
+      break;
+    case DataType::uint8:
+      selectUint8(distance_function, dimension);
+      break;
+    default:
+      throw std::runtime_error("Unsupported data type");
+    }
+  }
+};
 
 class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
 
@@ -22,46 +128,76 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
 
 public:
   SquaredL2Distance() = default;
-  explicit SquaredL2Distance(size_t dim)
-      : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
-        _distance_computer(
-            [this](const void *x, const void *y, const size_t &dimension) {
-              return defaultDistanceImpl(x, y, dimension);
-            }) {
-    setDistanceFunction();
+  SquaredL2Distance(size_t dim, DataType data_type = DataType::float32)
+      : _data_type(data_type), _dimension(dim),
+        _data_size_bytes(dim * util::size(data_type)) {}
+  // _distance_computer(nullptr) {}
+
+  template <DataType data_type = DataType::float32>
+  static std::unique_ptr<SquaredL2Distance> create(size_t dim) {
+    return std::make_unique<SquaredL2Distance>(dim, data_type);
   }
 
-  inline size_t getDimension() const { return _dimension; }
+  inline constexpr size_t getDimension() const { return _dimension; }
 
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
     (void)asymmetric;
-    return _distance_computer(x, y, _dimension);
+    return (*_distance_computer)(x, y, _dimension);
   }
 
+  /**
+   * @brief Dispatcher for templating setDistanceFunction the right data type
+   */
+  void setDistanceFunctionWithType() {
+#ifndef NO_SIMD_VECTORIZATION
+    switch (_data_type) {
+    case DataType::float32:
+      setDistanceFunction<DataType::float32>();
+      break;
+    case DataType::uint8:
+      setDistanceFunction<DataType::uint8>();
+      break;
+
+    case DataType::int8:
+      setDistanceFunction<DataType::int8>();
+      break;
+
+    default:
+      throw std::runtime_error("Unsupported data type");
+    }
+#endif // NO_SIMD_VECTORIZATION
+  }
+
+  template <DataType data_type = DataType::float32> void setDistanceFunction() {
+    _distance_computer = std::make_unique<DistanceFunction>(std::bind(
+        &SquaredL2Distance::defaultDistanceImpl, this, std::placeholders::_1,
+        std::placeholders::_2, std::placeholders::_3));
+
+    OptimalL2SimdSelector<data_type>::select(_distance_computer, _dimension);
+  }
+
+  inline constexpr DataType dataTypeImpl() const { return _data_type; }
+
 private:
+  DataType _data_type;
   size_t _dimension;
   size_t _data_size_bytes;
-  std::function<float(const void *, const void *, const size_t &)>
-      _distance_computer;
+  DistanceFunctionPtr _distance_computer;
 
   friend class ::cereal::access;
 
   template <typename Archive> void serialize(Archive &ar) {
-    ar(_dimension, _data_size_bytes);
+    ar(_data_type, _dimension, _data_size_bytes);
 
     if (Archive::is_loading::value) {
-      _distance_computer = [this](const void *x, const void *y,
-                                  const size_t &dimension) {
-        return defaultDistanceImpl(x, y, dimension);
-      };
-      setDistanceFunction();
+      setDistanceFunctionWithType();
     }
   }
 
-  size_t dataSizeImpl() { return _data_size_bytes; }
+  inline size_t dataSizeImpl() { return _data_size_bytes; }
 
-  void transformDataImpl(void *destination, const void *src) {
+  inline void transformDataImpl(void *destination, const void *src) {
     std::memcpy(destination, src, _data_size_bytes);
   }
 
@@ -71,69 +207,7 @@ private:
               << "\n"
               << std::flush;
     std::cout << "Dimension: " << _dimension << "\n" << std::flush;
-  }
-
-  void setDistanceFunction() {
-#ifndef NO_SIMD_VECTORIZATION
-    selectOptimalSimdStrategy();
-    adjustForNonOptimalDimensions();
-#endif // NO_SIMD_VECTORIZATION
-  }
-
-  void selectOptimalSimdStrategy() {
-    // Start with SSE implementation
-#if defined(USE_SSE)
-    _distance_computer = [this](const void *x, const void *y,
-                                const size_t &dimension) {
-      return flatnav::util::computeL2_Sse(x, y, dimension);
-    };
-#endif // USE_SSE
-
-#if defined(USE_AVX512)
-    if (platformSupportsAvx512) {
-      _distance_computer = [this](const void *x, const void *y,
-                                  const size_t &dimension) {
-        return flatnav::util::computeL2_Avx512(x, y, dimension);
-      };
-      return;
-    }
-
-#endif // USE_AVX512
-
-#if defined(USE_AVX)
-    if (platformSupportsAvx) {
-      _distance_computer = [this](const void *x, const void *y,
-                                  const size_t &dimension) {
-        return flatnav::util::computeL2_Avx2(x, y, dimension);
-      };
-      return;
-    }
-
-#endif // USE_AVX
-  }
-
-  void adjustForNonOptimalDimensions() {
-#if defined(USE_SSE)
-
-    if (_dimension % 16 != 0) {
-      if (_dimension % 4 == 0) {
-        _distance_computer = [this](const void *x, const void *y,
-                                    const size_t &dimension) {
-          return flatnav::util::computeL2_Sse4Aligned(x, y, dimension);
-        };
-      } else if (_dimension > 16) {
-        _distance_computer = [this](const void *x, const void *y,
-                                    const size_t &dimension) {
-          return flatnav::util::computeL2_SseWithResidual_16(x, y, dimension);
-        };
-      } else if (_dimension > 4) {
-        _distance_computer = [this](const void *x, const void *y,
-                                    const size_t &dimension) {
-          return flatnav::util::computeL2_SseWithResidual_4(x, y, dimension);
-        };
-      }
-    }
-#endif // USE_SSE
+    std::cout << "Data Type: " << util::name(_data_type) << "\n" << std::flush;
   }
 
   float defaultDistanceImpl(const void *x, const void *y,

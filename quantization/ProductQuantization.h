@@ -13,6 +13,7 @@
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/util/Datatype.h>
 #include <memory>
 
 #ifdef _OPENMP
@@ -116,9 +117,10 @@ public:
     _subvector_dim = dim / _num_subquantizers;
 
     if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
-      _distance = SquaredL2Distance(_subvector_dim);
+      _distance = SquaredL2Distance::create<DataType::float32>(_subvector_dim);
     } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
-      _distance = InnerProductDistance(_subvector_dim);
+      _distance =
+          InnerProductDistance::create<DataType::float32>(_subvector_dim);
     } else {
       throw std::invalid_argument("Invalid metric type");
     }
@@ -571,9 +573,11 @@ private:
     if constexpr (Archive::is_loading::value) {
       // loading PQ
       if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
-        _distance = SquaredL2Distance(_subvector_dim);
+        _distance =
+            SquaredL2Distance::create<DataType::float32>(_subvector_dim);
       } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
-        _distance = InnerProductDistance(_subvector_dim);
+        _distance =
+            InnerProductDistance::create<DataType::float32>(_subvector_dim);
       } else {
         throw std::invalid_argument("Invalid metric type");
       }

@@ -43,7 +43,7 @@ void runTest(float *data, std::unique_ptr<DistanceInterface<dist_t>> &&distance,
 
   std::vector<int> labels(N);
   std::iota(labels.begin(), labels.end(), 0);
-  index->addBatch(data, labels, ef_construction);
+  index->template addBatch<float>(data, labels, ef_construction);
   index->saveIndex(/* filename = */ save_file);
 
   auto new_index =
