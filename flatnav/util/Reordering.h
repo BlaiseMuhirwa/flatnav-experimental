@@ -1,7 +1,7 @@
 #pragma once
 
-#include <flatnav/util/GorderPriorityQueue.h>
-#include <flatnav/util/VisitedSetPool.h>
+#include <flatnav/util/gorder_priority_queue.h>
+#include <flatnav/util/visited_set_pool.h>
 
 #include <algorithm>
 #include <queue>

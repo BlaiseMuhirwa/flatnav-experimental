@@ -4,8 +4,8 @@
 #include <cereal/cereal.hpp>
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/util/SquaredL2SimdExtensions.h>
+#include <flatnav/distance_interface.h>
+#include <flatnav/util/squared_l2_simd_extensions.h>
 #include <functional>
 #include <iostream>
 

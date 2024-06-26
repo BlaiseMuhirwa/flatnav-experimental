@@ -1,11 +1,11 @@
 #include <chrono>
 #include <cmath>
-#include <flatnav/Index.h>
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index.h>
+#include <flatnav/distances/inner_product_distance.h>
+#include <flatnav/distances/squared_l2_distance.h>
 #include <fstream>
 #include <iostream>
-#include <quantization/ProductQuantization.h>
+#include <quantization/product_quantization.h>
 #include <random>
 #include <utility>
 #include <vector>

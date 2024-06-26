@@ -8,11 +8,11 @@
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
 #include <cstring>
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/util/Macros.h>
-#include <flatnav/util/ParallelConstructs.h>
-#include <flatnav/util/Reordering.h>
-#include <flatnav/util/VisitedSetPool.h>
+#include <flatnav/distance_interface.h>
+#include <flatnav/util/macros.h>
+#include <flatnav/util/parallel_constructs.h>
+#include <flatnav/util/reordering.h>
+#include <flatnav/util/visited_set_pool.h>
 #include <fstream>
 #include <limits>
 #include <memory>

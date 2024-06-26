@@ -1,11 +1,11 @@
 
 #include "gtest/gtest.h"
-#include <flatnav/util/Macros.h>
-#include <flatnav/util/SimdBaseTypes.h>
+#include <flatnav/util/macros.h>
+#include <flatnav/util/simd_base_types.h>
 #include <random>
 
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/distances/inner_product_distance.h>
+#include <flatnav/distances/squared_l2_distance.h>
 
 namespace flatnav::testing {
 

@@ -28,7 +28,7 @@ set(CMAKE_CXX_FLAGS
     -funroll-loops")
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-include(cmake/FindAVX.cmake)
+include(cmake/find_avx.cmake)
 
 option(CMAKE_BUILD_TYPE "Build type" Release)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -44,9 +44,18 @@ feature_summary(WHAT ALL)
 
 include_directories("${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}")
 
+
+if(APPLE)
+  set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I/usr/local/opt/libomp/include")
+  set(OpenMP_CXX_LIB_NAMES "omp")
+  set(OpenMP_omp_LIBRARY "/usr/local/opt/libomp/lib/libomp.dylib")
+endif()
+
 find_package(OpenMP REQUIRED)
 if(OpenMP_FOUND)
   message(STATUS "OpenMP Found. Building the Package using the system OpenMP.")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 else()
   message(
     FATAL_ERROR
@@ -70,21 +79,21 @@ endif()
 # TODO: Using globbing or some other command that does not require writing down
 # every header file
 set(HEADERS
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SquaredL2SimdExtensions.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/InnerProductSimdExtensions.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SimdBaseTypes.h
-    ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
-    ${PROJECT_SOURCE_DIR}/flatnav/Index.h
-    ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
-    ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
-    ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/inner_product_distance.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/squared_l2_distance.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/squared_l2_simd_extensions.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/inner_product_simd_extensions.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/visited_set_pool.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/gorder_priority_queue.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/reordering.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/parallel_constructs.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/macros.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/simd_base_types.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distance_interface.h
+    ${PROJECT_SOURCE_DIR}/flatnav/index.h
+    ${PROJECT_SOURCE_DIR}/quantization/product_quantization.h
+    ${PROJECT_SOURCE_DIR}/quantization/centroids_generator.h
+    ${PROJECT_SOURCE_DIR}/quantization/utils.h)
 
 # Interface here means that the library is header only
 add_library(FLAT_NAV_LIB INTERFACE)
@@ -96,13 +105,13 @@ target_link_libraries(FLAT_NAV_LIB INTERFACE OpenMP::OpenMP_CXX)
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples")
   list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-  include(cmake/FindCNPYAndZLIB.cmake)
+  include(cmake/find_cnpy_and_zlib.cmake)
   add_subdirectory(${PROJECT_SOURCE_DIR}/tools)
 endif()
 
 if(BUILD_TESTS)
   message(STATUS "Building flatnav + quantization unit tests using gtest")
-  include(cmake/FindGoogleTest.cmake)
+  include(cmake/find_google_test.cmake)
   add_subdirectory(${PROJECT_SOURCE_DIR}/flatnav/tests)
   # add_subdirectory(${PROJECT_SOURCE_DIR}/quantization/tests)
 endif()

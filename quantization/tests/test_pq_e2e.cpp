@@ -1,9 +1,9 @@
 
 
-#include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/distances/squared_l2_distance.h>
 #include <gtest/gtest.h>
 #include <memory>
-#include <quantization/ProductQuantization.h>
+#include <quantization/product_quantization.h>
 #include <random>
 
 using flatnav::quantization::ProductQuantizer;

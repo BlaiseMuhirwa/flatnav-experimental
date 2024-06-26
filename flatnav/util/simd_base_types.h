@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <flatnav/util/Macros.h>
+#include <flatnav/util/macros.h>
 
 namespace flatnav::util {
 

@@ -3,7 +3,7 @@
 // #include <flatnav/util/SIMDDistanceSpecializations.h>
 
 #include <cstring>
-#include <flatnav/util/Macros.h>
+#include <flatnav/util/macros.h>
 #include <iostream>
 #include <memory>
 #include <mutex>

@@ -26,21 +26,23 @@ function print_usage() {
 }
 
 function set_compilers() {
-    # Use clang/clang++ as the default compiler. If not available, fall back to gcc/g++ 
-    if command -v clang &> /dev/null 2>&1; then 
-        echo "Building with clang/clang++ compilers"
+    # Use clang/clang++ as the default compiler. If not available, fall back to gcc/g++
+    if command -v /usr/local/opt/llvm/bin/clang &> /dev/null 2>&1; then
+        echo "Building with LLVM clang/clang++ compilers"
+        export CC=/usr/local/opt/llvm/bin/clang
+        export CXX=/usr/local/opt/llvm/bin/clang++
+    elif command -v clang &> /dev/null 2>&1; then
+        echo "Building with system clang/clang++ compilers"
         export CC=$(command -v clang)
         export CXX=$(command -v clang++)
-    
     elif command -v gcc &> /dev/null 2>&1; then
         echo "Building with gcc/g++ compilers"
         export CC=$(command -v gcc)
         export CXX=$(command -v g++)
     else
-        echo "Please install either clang or gcc. Exiting..."
+        echo "Please install either LLVM clang, clang, or gcc. Exiting..."
         exit 1
     fi
-
 }
 
 # Process the options and arguments     
@@ -60,12 +62,16 @@ done
 set_compilers
 
 if [[ "$(uname)" == "Darwin" ]]; then
-    if [[ -x "/opt/homebrew/opt/llvm/bin/clang" ]]; then
+    if [[ -x "/usr/local/opt/llvm/bin/clang" ]]; then
         echo "Using LLVM clang"
-        export CC=/opt/homebrew/opt/llvm/bin/clang
-        export CXX=/opt/homebrew/opt/llvm/bin/clang++
-        export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
-        export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
+        export CC=/usr/local/opt/llvm/bin/clang
+        export CXX=/usr/local/opt/llvm/bin/clang++
+        export LDFLAGS="-L/usr/local/opt/llvm/lib -L/usr/local/opt/libomp/lib"
+        export CPPFLAGS="-I/usr/local/opt/llvm/include -I/usr/local/opt/libomp/include"
+        export PATH="/usr/local/opt/llvm/bin:$PATH"
+        export CPLUS_INCLUDE_PATH="/usr/local/opt/llvm/include/c++/v1"
+    else
+        echo "Using system compiler: ${CC} and ${CXX}"
     fi
 elif [[ "$(uname)" == "Linux" ]]; then
     echo "Using system compiler: ${CC} and ${CXX}"

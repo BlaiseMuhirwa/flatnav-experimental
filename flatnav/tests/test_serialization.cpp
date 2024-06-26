@@ -1,10 +1,10 @@
 #include "gtest/gtest.h"
 #include <cassert>
 #include <cstdio> // for remove
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/Index.h>
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/distance_interface.h>
+#include <flatnav/index.h>
+#include <flatnav/distances/inner_product_distance.h>
+#include <flatnav/distances/squared_l2_distance.h>
 #include <random>
 
 using flatnav::DistanceInterface;

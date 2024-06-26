@@ -10,9 +10,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/distance_interface.h>
+#include <flatnav/distances/inner_product_distance.h>
+#include <flatnav/distances/squared_l2_distance.h>
 #include <memory>
 
 #ifdef _OPENMP

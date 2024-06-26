@@ -2,8 +2,8 @@
 #pragma once
 
 #include <cstdint>
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/distances/inner_product_distance.h>
+#include <flatnav/distances/squared_l2_distance.h>
 #include <limits>
 #include <variant>
 
