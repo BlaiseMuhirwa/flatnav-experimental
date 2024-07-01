@@ -130,6 +130,10 @@ def create_linestyles(unique_algorithms: Set[str]) -> Dict[str, Tuple]:
             faded color (RGBA, alpha=0.3), line style, and marker style.
 
     """
+
+    # Sort the list of algorithm names in reverse alphabetical order to ensure color consistency
+    unique_algorithms = sorted(list(unique_algorithms), reverse=True)
+
     colors = dict(zip(unique_algorithms, generate_n_colors(len(unique_algorithms))))
     linestyles = dict(
         (algorithm, ["--", "-.", "-", ":"][i % 4])
