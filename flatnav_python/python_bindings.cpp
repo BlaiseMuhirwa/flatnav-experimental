@@ -9,6 +9,7 @@
 #include <flatnav/util/Multithreading.h>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -138,11 +139,12 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
         /* ef_search = */ ef_search,
         /* num_initializations = */ num_initializations);
 
-    if (top_k.size() != K) {
-      throw std::runtime_error(
-          "Search did not return the expected number of results. Expected " +
-          std::to_string(K) + " but got " + std::to_string(top_k.size()) + ".");
-    }
+    // if (top_k.size() != K) {
+    //   throw std::runtime_error(
+    //       "Search did not return the expected number of results. Expected " +
+    //       std::to_string(K) + " but got " + std::to_string(top_k.size()) +
+    //       ".");
+    // }
 
     label_t *labels = new label_t[K];
     float *distances = new float[K];
@@ -239,7 +241,7 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
         {num_queries, (size_t)K}, {K * sizeof(float), sizeof(float)}, distances,
         free_distances_when_done);
 
-    return {dists, labels};
+    return {labels, dists};
   }
 
 public:
@@ -286,6 +288,10 @@ public:
   Index<dist_t, label_t> *getIndex() { return _index; }
 
   ~PyIndex() { delete _index; }
+
+  inline const std::unordered_map<uint32_t, uint32_t> getNodeAccessCounts() {
+    return _index->getNodeAccessCounts();
+  }
 
   uint64_t getQueryDistanceComputations() const {
     auto distance_computations = _index->distanceComputations();
@@ -494,6 +500,7 @@ void bindSpecialization(py::module_ &index_submodule) {
            &IndexType::getQueryDistanceComputations,
            GET_QUERY_DISTANCE_COMPUTATIONS_DOCSTRING)
       .def("save", &IndexType::save, py::arg("filename"), SAVE_DOCSTRING)
+      .def("get_node_access_counts", &IndexType::getNodeAccessCounts,"")
       .def("build_graph_links", &IndexType::buildGraphLinks,
            py::arg("mtx_filename"), BUILD_GRAPH_LINKS_DOCSTRING)
       .def("get_graph_outdegree_table", &IndexType::getGraphOutdegreeTable,

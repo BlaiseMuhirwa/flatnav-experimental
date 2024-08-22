@@ -14,11 +14,15 @@
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <queue>
+#include <random>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -27,6 +31,17 @@ using flatnav::util::VisitedSet;
 using flatnav::util::VisitedSetPool;
 
 namespace flatnav {
+
+// Define a custom hash function for std::pair<uint32_t, uint32_t>
+struct pair_hash {
+  template <class T1, class T2>
+  std::size_t operator()(const std::pair<T1, T2> &pair) const {
+    auto hash1 = std::hash<T1>{}(pair.first);
+    auto hash2 = std::hash<T2>{}(pair.second);
+    // Combine the two hash values. (This is just one possible way to do it.)
+    return hash1 ^ hash2;
+  }
+};
 
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
@@ -116,6 +131,30 @@ template <typename dist_t, typename label_t> class Index {
     return *this;
   }
 
+  // Tracking metrics for node access patterns. This unordered map is used to
+  // record how many times each node is visited during search. The key is the
+  // node id and the value is the number of times the node is visited.
+  std::unordered_map<uint32_t, uint32_t> _node_access_counts;
+  // std::mutex _node_access_counts_guard;
+
+  // Tracking metrics for the edge length distribution. This unordered map is
+  // used to record the length of each edge in the graph. The key is the hash of
+  // the sum of the two node IDs and the value is the length of the edge
+  // connecting them.
+  std::unordered_map<size_t, float> _edge_length_distribution;
+
+  // Track the number of times each edge is visited during search. This
+  // unordered map is used to record how many times each edge is visited during
+  // search.
+  // std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t, pair_hash>
+  //     _edge_access_counts;
+  // std::mutex _edge_access_counts_guard;
+
+  // Randomization parameters
+  bool _use_random_initialization = false;
+  std::mt19937 _generator;
+  std::uniform_int_distribution<> _distribution;
+
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
             _cur_num_nodes, *_distance);
@@ -142,29 +181,86 @@ public:
    * the search process.
    */
   Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node, bool collect_stats = false)
+        int max_edges_per_node, bool collect_stats = false,
+        bool use_random_initialization = false,
+        std::optional<size_t> random_seed = std::nullopt)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
-        _node_links_mutexes(dataset_size), _collect_stats(collect_stats) {
+        _node_links_mutexes(dataset_size), _collect_stats(collect_stats),
+        _use_random_initialization(use_random_initialization) {
 
-    // Get the size in bytes of the _node_links_mutexes vector.
-    size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
+    if (random_seed.has_value()) {
+      _generator = std::mt19937(random_seed.value());
+      _distribution = std::uniform_int_distribution<>(0, _max_node_count - 1);
+    }
+
+    initNodeAccessCounts();
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
     size_t index_memory_size = _node_size_bytes * _max_node_count;
-
     _index_memory = new char[index_memory_size];
+  }
+
+  void initNodeAccessCounts() {
+    // Initialize the node access counts to 0 for all nodes.
+    for (uint32_t i = 0; i < _max_node_count; i++) {
+      _node_access_counts[i] = 0;
+    }
   }
 
   ~Index() {
     delete[] _index_memory;
     delete _visited_set_pool;
   }
+
+  /**
+   * @brief re-prune the graph by removing edges to hub nodes.
+   * @param hub_nodes The hub nodes to prune edges from.
+   * @param alpha The pruning threshold. \alpha ranges from 0 to 1.
+   * Ex. if alpha = 0.5, then we remove 50% of the edges from the hub nodes.
+   * Edge removal is done by setting the edge to the node itself.
+   * The edge selection process is done using random selection.
+   */
+  void rePruneGraph(const std::vector<uint32_t> &hub_nodes, float alpha) {
+
+    if (alpha < 0 || alpha > 1) {
+      throw std::invalid_argument("Alpha must be in the range [0, 1].");
+    }
+
+    std::vector<std::pair<uint32_t, uint32_t>> edges_between_hub_nodes;
+    for (const auto &hub_node : hub_nodes) {
+      node_id_t *links = getNodeLinks(hub_node);
+      for (size_t i = 0; i < _M; i++) {
+        if (links[i] != hub_node) {
+          edges_between_hub_nodes.emplace_back(hub_node, links[i]);
+        }
+      }
+    }
+
+    // Now randomly pick alpha * |edges_between_hub_nodes| edges to remove.
+    std::shuffle(edges_between_hub_nodes.begin(), edges_between_hub_nodes.end(),
+                 _generator);
+
+    size_t num_edges_to_remove =
+        static_cast<size_t>(alpha * edges_between_hub_nodes.size());
+    for (size_t i = 0; i < num_edges_to_remove; i++) {
+      auto [a, b] = edges_between_hub_nodes[i];
+      node_id_t *links = getNodeLinks(a);
+      for (size_t j = 0; j < _M; j++) {
+        if (links[j] == b) {
+          links[j] = a;
+          break;
+        }
+      }
+    }
+  }
+
+  void resetNodeAccessDistribution() { _node_access_counts.clear(); }
 
   void buildGraphLinks(const std::string &mtx_filename) {
     std::ifstream input_file(mtx_filename);
@@ -221,6 +317,9 @@ public:
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
     std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
+      // allocate a vector of size 0 so that each node has an entry in the
+      // outdegree table.
+      outdegree_table[node] = std::vector<uint32_t>();
       node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < _M; i++) {
         if (links[i] != node) {
@@ -229,6 +328,62 @@ public:
       }
     }
     return outdegree_table;
+  }
+
+  size_t cantorPairing(node_id_t a, node_id_t b) {
+    // if (a > b) {
+    //   std::swap(a, b);
+    // }
+    return (a + b) * (a + b + 1) / 2 + b;
+  }
+
+  void computeEdgeLengthDistribution() {
+    // #pragma omp parallel for default(none)                                         \
+//     shared(_edge_length_distribution, _cur_num_nodes, _M, _distance)
+    for (node_id_t node = 0; node < _cur_num_nodes; node++) {
+      node_id_t *links = getNodeLinks(node);
+      for (size_t i = 0; i < _M; i++) {
+        if (links[i] == node) {
+          continue;
+        }
+        size_t hash = cantorPairing(node, links[i]);
+        bool item_exists;
+        // #pragma omp critical
+        item_exists = _edge_length_distribution.find(hash) !=
+                      _edge_length_distribution.end();
+
+        if (!item_exists) {
+          float distance = _distance->distance(/* x = */ getNodeData(node),
+                                               /* y = */ getNodeData(links[i]));
+          // #pragma omp critical
+          _edge_length_distribution[hash] = distance;
+        }
+      }
+    }
+  }
+
+  std::unordered_map<uint32_t, uint32_t>
+  computeEdgeLengthDistributionForNodes(const std::vector<uint32_t> &nodes) {
+    std::unordered_map<uint32_t, uint32_t> edge_length_distribution;
+    for (const auto &node : nodes) {
+      node_id_t *links = getNodeLinks(node);
+      for (size_t i = 0; i < _M; i++) {
+        if (links[i] == node) {
+          continue;
+        }
+        size_t hash = cantorPairing(node, links[i]);
+        bool item_exists;
+        item_exists = edge_length_distribution.find(hash) !=
+                      edge_length_distribution.end();
+
+        if (!item_exists) {
+          float distance = _distance->distance(/* x = */ getNodeData(node),
+                                               /* y = */ getNodeData(links[i]));
+          edge_length_distribution[hash] = distance;
+        }
+      }
+    }
+    return edge_length_distribution;
   }
 
   /**
@@ -350,7 +505,7 @@ public:
       return;
     }
 
-    auto neighbors = beamSearch(
+    auto neighbors = beamSearch<false>(
         /* query = */ data, /* entry_node = */ entry_node,
         /* buffer_size = */ ef_construction);
 
@@ -368,11 +523,16 @@ public:
   std::vector<dist_label_t> search(const void *query, const int K,
                                    int ef_search,
                                    int num_initializations = 100) {
-    node_id_t entry_node = initializeSearch(query, num_initializations);
+    node_id_t entry_node;
+    if (_use_random_initialization) {
+      entry_node = randomlyInitializeSearch(query, num_initializations);
+    } else {
+      entry_node = initializeSearch(query, num_initializations);
+    }
     PriorityQueue neighbors =
-        beamSearch(/* query = */ query,
-                   /* entry_node = */ entry_node,
-                   /* buffer_size = */ std::max(ef_search, K));
+        beamSearch<true>(/* query = */ query,
+                         /* entry_node = */ entry_node,
+                         /* buffer_size = */ std::max(K, ef_search));
     auto size = neighbors.size();
     std::vector<dist_label_t> results;
     results.reserve(size);
@@ -518,6 +678,17 @@ public:
     _metric_hops = 0;
   }
 
+  // Return a reference to the node access counts
+  inline const std::unordered_map<uint32_t, uint32_t> &
+  getNodeAccessCounts() const {
+    return _node_access_counts;
+  }
+
+  inline const std::unordered_map<size_t, float> &
+  getEdgeLengthDistribution() const {
+    return _edge_length_distribution;
+  }
+
   void getIndexSummary() const {
     std::cout << "\nIndex Parameters\n" << std::flush;
     std::cout << "-----------------------------\n" << std::flush;
@@ -580,6 +751,7 @@ private:
    *
    * @return PriorityQueue
    */
+  template <bool is_search_stage = false>
   PriorityQueue beamSearch(const void *query, const node_id_t entry_node,
                            const int buffer_size) {
     PriorityQueue neighbors;
@@ -602,6 +774,11 @@ private:
     neighbors.emplace(dist, entry_node);
     visited_set->insert(entry_node);
 
+    // Increment the counter in the visited map for the entry point node
+    if (is_search_stage) {
+      _node_access_counts[entry_node]++;
+    }
+
     while (!candidates.empty()) {
       auto [distance, node] = candidates.top();
 
@@ -623,7 +800,7 @@ private:
       }
 #endif
 
-      processCandidateNode(
+      processCandidateNode<is_search_stage>(
           /* query = */ query, /* node = */ node,
           /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
           /* visited_set = */ visited_set,
@@ -636,6 +813,7 @@ private:
     return neighbors;
   }
 
+  template <bool is_search_stage>
   void processCandidateNode(const void *query, node_id_t &node, float &max_dist,
                             const int buffer_size, VisitedSet *visited_set,
                             PriorityQueue &neighbors,
@@ -647,6 +825,13 @@ private:
     node_id_t *neighbor_node_links = getNodeLinks(node);
     for (uint32_t i = 0; i < _M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
+
+      if (is_search_stage) {
+        // Collect node access counts statistics. We will assume that we are in
+        // a single-threaded environment so we don't need to lock the access
+        // counts.
+        _node_access_counts[neighbor_node_id]++;
+      }
 
       // If using SSE, prefetch the next neighbor node data and the visited
       // marker
@@ -664,6 +849,18 @@ private:
         continue;
       }
       visited_set->insert(/* num = */ neighbor_node_id);
+
+      // Increment the counter in the visited map
+      // std::unique_lock<std::mutex> neighbor_lock(
+      //     _node_links_mutexes[neighbor_node_id]);
+
+      // _edge_access_counts_guard.lock();
+      // auto key = std::make_pair(node, neighbor_node_id);
+      // _edge_access_counts[key]++;
+      // _edge_access_counts_guard.unlock();
+
+      // neighbor_lock.unlock();
+
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
                                  /* asymmetric = */ true);
@@ -827,8 +1024,7 @@ private:
    * @param num_initializations
    * @return node_id_t
    */
-  inline node_id_t initializeSearch(const void *query,
-                                    int num_initializations) {
+  node_id_t initializeSearch(const void *query, int num_initializations) {
     // select entry_node from a set of random entry point options
     if (num_initializations <= 0) {
       throw std::invalid_argument(
@@ -846,6 +1042,35 @@ private:
     }
 
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
+      float dist =
+          _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
+                              /* asymmetric = */ true);
+      if (dist < min_dist) {
+        min_dist = dist;
+        entry_node = node;
+      }
+    }
+    return entry_node;
+  }
+
+  // Use this during search to select a random entry point
+  node_id_t randomlyInitializeSearch(const void *query,
+                                     int num_initializations) {
+    // select entry_node from a set of random entry point options
+    if (num_initializations <= 0) {
+      throw std::invalid_argument(
+          "num_initializations must be greater than 0.");
+    }
+
+    float min_dist = std::numeric_limits<float>::max();
+    node_id_t entry_node = 0;
+
+    if (_collect_stats) {
+      _distance_computations.fetch_add(num_initializations);
+    }
+
+    for (int i = 0; i < num_initializations; i++) {
+      node_id_t node = _distribution(_generator);
       float dist =
           _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
                               /* asymmetric = */ true);
@@ -912,6 +1137,6 @@ private:
     delete[] temp_links;
     delete temp_label;
   }
-};
+}; // namespace flatnav
 
 } // namespace flatnav
